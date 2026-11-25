@@ -1,7 +1,7 @@
 import { alive, SPECS, type BotLevel, type PublicGnomesState } from "@gartenfehde/gnomes";
 import type { Seat } from "@gartenfehde/core";
 import type { TableView as TableInfo } from "@gartenfehde/protocol";
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type FormEvent, type ReactNode } from "react";
 import type { Snapshot, TableController } from "./controller";
 import { HotseatGame } from "./hotseat";
 import { NetClient, type ChatLine } from "./net";
@@ -564,11 +564,77 @@ function PlayArea({ game, seats, score, mySeat }: { game: TableController; seats
         </div>
         <PlayerCard state={state} phase={snap.phase} names={snap.names} seat={1} info={seats[1]} me={mySeat === 1} />
       </div>
-      <Board game={game} />
+      <div className="board-stage">
+        <Board game={game} />
+        {state.winner !== null && snap.phase === "over" && (
+          <Celebration
+            key={`${state.moves}-${state.winner}`}
+            winnerName={snap.names[state.winner]}
+            result={mySeat === null ? "neutral" : state.winner === mySeat ? "won" : "lost"}
+          />
+        )}
+      </div>
       <p className="hint" aria-live="polite">
         {hint}
       </p>
     </>
+  );
+}
+
+/** Blütenblätter, Blätter und Wassertropfen in den Farben des Gartens. */
+const PETALS = [
+  { kind: "petal", color: "#F28DB2" },
+  { kind: "petal", color: "#F6D743" },
+  { kind: "drop", color: "#5BB8F0" },
+  { kind: "leaf", color: "#6DBB4A" },
+  { kind: "petal", color: "#FFF6E0" },
+  { kind: "petal", color: "#E8573B" },
+  { kind: "drop", color: "#8FD3FF" }
+] as const;
+
+/** Abschluss einer Partie über dem Garten: Blütenregen und Pokal für den Sieger, ein ruhiger Hinweis nach einer Niederlage. */
+function Celebration({ result, winnerName }: { result: "won" | "lost" | "neutral"; winnerName: string }) {
+  const festive = result !== "lost";
+  // Fester Pseudozufall je Stück, damit sich der Blütenregen bei jedem Neuzeichnen gleich verhält
+  const spread = (i: number, salt: number) => ((Math.sin(i * 12.9898 + salt * 78.233) * 43758.5453) % 1 + 1) % 1;
+  return (
+    <div className={`celebration ${result}`} data-result={result} role="status">
+      {festive && (
+        <div className="confetti" aria-hidden="true">
+          {Array.from({ length: 70 }, (_, i) => {
+            const look = PETALS[i % PETALS.length]!;
+            const size = 8 + spread(i, 6) * 8;
+            return (
+              <i
+                key={i}
+                className={look.kind}
+                style={
+                  {
+                    left: `${spread(i, 1) * 100}%`,
+                    background: look.color,
+                    "--drift": `${(spread(i, 2) - 0.5) * 180}px`,
+                    "--turns": `${(spread(i, 3) - 0.5) * 4}turn`,
+                    animationDelay: `${spread(i, 4) * 1.1}s`,
+                    animationDuration: `${2.6 + spread(i, 5) * 1.8}s`,
+                    width: `${look.kind === "drop" ? size * 0.7 : size}px`,
+                    height: `${look.kind === "leaf" ? size * 1.5 : size}px`
+                  } as CSSProperties
+                }
+              />
+            );
+          })}
+        </div>
+      )}
+      <div className="celebration-banner">
+        {festive && (
+          <span className="trophy" aria-hidden="true">
+            🏆
+          </span>
+        )}
+        <strong>{result === "won" ? "Gewonnen!" : result === "lost" ? "Verloren" : `${winnerName} gewinnt!`}</strong>
+        {result === "lost" && <span className="small">{winnerName} gewinnt diese Partie.</span>}
+      </div>
+    </div>
   );
 }
 
